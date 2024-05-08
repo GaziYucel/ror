@@ -98,21 +98,24 @@
 			},
 			fillOrganizations: function(items) {
 				items.forEach((item) => {
-					let name = '';
-					let names = { /**/};
+					let name = ''; // primary name
+					let names = { /**/}; // alternative names
 
 					for (let i = 0; i < item.organization.names.length; i++) {
+						// primary name
 						if (item.organization.names[i].types.includes('ror_display')
 							&& item.organization.names[i].types.includes('label')) {
 							name = item.organization.names[i].value;
 						}
 
+						// alternative names
 						if (item.organization.names[i].lang !== null
 							&& item.organization.names[i].lang.length > 0) {
 							names[item.organization.names[i].lang] = item.organization.names[i].value;
 						}
 					}
 
+					// primary name not found, fill from alternative names
 					for (let i = 0; i < item.organization.names.length; i++) {
 						if (name === null || name.length === 0) {
 							name = item.organization.names[i].value;
@@ -124,6 +127,7 @@
 						name: name,
 						labels: names
 					};
+
 					this.organizations.push(row);
 				});
 			}
