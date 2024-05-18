@@ -8,7 +8,7 @@
  * Ror lookup for contributor
  *}
 
-<link rel="stylesheet" href="{$stylePath}" type="text/css"/>
+<link rel="stylesheet" href="{$stylePath}" type="text/css" />
 
 {assign var="templateOpen" value='<script>let rorPluginTemplate = `'}
 {assign var="templateClose" value='`;</script>'}
@@ -27,10 +27,12 @@
                 <span class='pkpSearch__icons'>
                     <icon icon='search' class='pkpSearch__icons--search'></icon>
                 </span>
-                <input class="pkpFormField__input pkpFormField--text__input" ref="input" v-model="searchPhrase"
+                <input class="pkpFormField__input pkpFormField--text__input" ref="input"
+                       v-model="searchPhrase"
+                       @keyup="apiLookup()"
                        :type="inputType" :id="controlId" :name="localizedName" :aria-describedby="describedByIds"
                        :aria-invalid="errors && errors.length" :disabled="isDisabled" :required="isRequired"
-                       :style="inputStyles"/>
+                       :style="inputStyles" />
             </label>
             <button class="pkpSearch__clear" v-if="searchPhrase" @click.prevent="clearSearchPhrase">
                 <icon icon="times"></icon>
@@ -48,76 +50,83 @@
 {$templateClose}
 
 <script>
-    let rorPluginTemplateCompiled = pkp.Vue.compile(rorPluginTemplate);
+	let rorPluginTemplateCompiled = pkp.Vue.compile(rorPluginTemplate);
 
-    pkp.Vue.component('ror-field-text-lookup', {
-        name: 'RorFieldTextLookup',
-        extends: pkp.Vue.component('field-text'),
-        data() {
-            return {
-                // [ { id: id1, name: name1, labels: [ 'en': 'label1', ... }, ... ]
-                organizations: [],
-                searchPhrase: "",
-                minimumSearchPhraseLength: 3,
-            }
-        },
-        methods: {
-            selectOrganization(index) {
-                let fields = this.$parent._props.fields;
-                fields[this.getIndex('rorId')].value = this.organizations[index].id;
-                let values = fields[this.getIndex('affiliation')].value;
-                Object.keys(values).forEach(key => {
-                    values[key] = this.organizations[index].name;
-                    if (typeof this.organizations[index].labels[key] !== 'undefined') {
-                        values[key] = this.organizations[index].labels[key];
-                    }
-                });
-            },
-            clearSearchPhrase() {
-                this.organizations = [];
-                this.searchPhrase = "";
-            },
-            getIndex(fieldName) {
-                let fields = this.$parent._props.fields;
-                for (let i = 0; i < fields.length; i++) {
-                    if (fields[i].name === fieldName) {
-                        return i;
-                    }
-                }
-            },
-            apiLookup() {
-                fetch('https://api.ror.org/organizations?affiliation=' + this.searchPhrase + '*')
-                    .then(response => response.json())
-                    .then(data => {
-                        this.organizations = [];
-                        let items = data.items;
-                        items.forEach((item) => {
-                            let labels = { /* */};
-                            for (let i = 0; i < item.organization.labels.length; i++) {
-                                labels[item.organization.labels[i].iso639]
-                                    = item.organization.labels[i].label
-                            }
-                            let row = {
-                                id: item.organization.id,
-                                name: item.organization.name,
-                                labels: labels
-                            };
+	pkp.Vue.component('ror-field-text-lookup', {
+		name: 'RorFieldTextLookup',
+		extends: pkp.Vue.component('field-text'),
+		data() {
+			return {
+				// [ { id: id1, name: name1, labels: [ 'en': 'label1', ... }, ... ]
+				organizations: [],
+				searchPhrase: '',
+				minimumSearchPhraseLength: 3,
+				weakMap: new WeakMap()
+			};
+		},
+		methods: {
+			selectOrganization(index) {
+				let fields = this.$parent._props.fields;
+				fields[this.getIndex('rorId')].value = this.organizations[index].id;
+				let values = fields[this.getIndex('affiliation')].value;
+				Object.keys(values).forEach(key => {
+					values[key] = this.organizations[index].name;
+					if (typeof this.organizations[index].labels[key] !== 'undefined') {
+						values[key] = this.organizations[index].labels[key];
+					}
+				});
+			},
+			clearSearchPhrase() {
+				this.organizations = [];
+				this.searchPhrase = '';
+			},
+			getIndex(fieldName) {
+				let fields = this.$parent._props.fields;
+				for (let i = 0; i < fields.length; i++) {
+					if (fields[i].name === fieldName) {
+						return i;
+					}
+				}
+			},
+			apiLookup() {
+				const previousController = this.weakMap.get(this);
+				if (previousController) previousController.abort();
 
-                            this.organizations.push(row);
-                        });
-                    })
-                    .catch(error => console.log(error));
-            }
-        },
-        watch: {
-            searchPhrase() {
-                if (this.searchPhrase.length >= this.minimumSearchPhraseLength) {
-                    this.apiLookup();
-                }
-            }
-        },
-        render: function (h) {
-            return rorPluginTemplateCompiled.render.call(this, h);
-        }
-    });
+				if (this.searchPhrase.length < this.minimumSearchPhraseLength) return;
+
+				const controller = new AbortController();
+				this.weakMap.set(this, controller);
+
+				let organizations = [];
+
+				fetch('https://api.ror.org/organizations?affiliation=' + this.searchPhrase + '*', {
+					signal: controller.signal
+				})
+					.then(response => response.json())
+					.then(data => {
+						let items = data.items;
+						items.forEach((item) => {
+							let labels = { /* */};
+							for (let i = 0; i < item.organization.labels.length; i++) {
+								labels[item.organization.labels[i].iso639]
+									= item.organization.labels[i].label;
+							}
+							let row = {
+								id: item.organization.id,
+								name: item.organization.name,
+								labels: labels
+							};
+
+							organizations.push(row);
+						});
+					})
+					.catch(error => console.log(error));
+
+				this.organizations = organizations;
+			}
+		},
+		render: function(h) {
+			return rorPluginTemplateCompiled.render.call(this, h);
+		}
+	});
 </script>
