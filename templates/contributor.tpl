@@ -61,7 +61,7 @@
 				organizations: [],
 				searchPhrase: '',
 				minimumSearchPhraseLength: 3,
-				weakMap: new WeakMap()
+				pendingRequests: new WeakMap()
 			};
 		},
 		methods: {
@@ -89,13 +89,13 @@
 				}
 			},
 			apiLookup() {
-				const previousController = this.weakMap.get(this);
+				const previousController = this.pendingRequests.get(this);
 				if (previousController) previousController.abort();
 
 				if (this.searchPhrase.length < this.minimumSearchPhraseLength) return;
 
 				const controller = new AbortController();
-				this.weakMap.set(this, controller);
+				this.pendingRequests.set(this, controller);
 
 				let organizations = [];
 
@@ -120,7 +120,13 @@
 							organizations.push(row);
 						});
 					})
-					.catch(error => console.log(error));
+					.catch(error => {
+						if (error.name === 'AbortError') {
+							console.log(error.name);
+							return;
+						}
+						console.log(error);
+					});
 
 				this.organizations = organizations;
 			}
