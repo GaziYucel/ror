@@ -97,36 +97,35 @@
 				const controller = new AbortController();
 				this.pendingRequests.set(this, controller);
 
-				let organizations = [];
-
 				fetch('https://api.ror.org/organizations?affiliation=' + this.searchPhrase + '*', {
 					signal: controller.signal
 				})
 					.then(response => response.json())
 					.then(data => {
-						let items = data.items;
-						items.forEach((item) => {
-							let labels = { /* */};
-							for (let i = 0; i < item.organization.labels.length; i++) {
-								labels[item.organization.labels[i].iso639]
-									= item.organization.labels[i].label;
-							}
-							let row = {
-								id: item.organization.id,
-								name: item.organization.name,
-								labels: labels
-							};
-
-							organizations.push(row);
-						});
+						this.setOrganizations(data.items);
 					})
 					.catch(error => {
-						if (error.name === 'AbortError') {
-							console.log(error.name);
-							return;
-						}
+						if (error.name === 'AbortError') return;
 						console.log(error);
 					});
+			},
+			setOrganizations: function(items) {
+				let organizations = [];
+
+				items.forEach((item) => {
+					let labels = { /* */};
+					for (let i = 0; i < item.organization.labels.length; i++) {
+						labels[item.organization.labels[i].iso639]
+							= item.organization.labels[i].label;
+					}
+					let row = {
+						id: item.organization.id,
+						name: item.organization.name,
+						labels: labels
+					};
+
+					organizations.push(row);
+				});
 
 				this.organizations = organizations;
 			}
