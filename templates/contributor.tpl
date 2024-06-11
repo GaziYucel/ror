@@ -116,10 +116,10 @@
 
                 items.forEach((item) => {
 
+                    let rorDefault = '';
                     let row = {
                         'id': item.organization.id,
                         'name': '',
-                        'rorDisplay': '',
                         'en': ''
                     };
 
@@ -131,7 +131,7 @@
                             }
 
                             if (item.organization.names[i].types.includes('ror_display')) {
-                                row.rorDisplay = item.organization.names[i].value;
+                                rorDefault = item.organization.names[i].value;
                             }
 
                             row[item.organization.names[i].lang] = item.organization.names[i].value;
@@ -140,7 +140,7 @@
 
                     // name empty, try english or names.types: ror_display
                     if (row.name === null || row.name.length === 0) {
-                        row.name = row.rorDisplay;
+                        row.name = rorDefault;
                         if (row.en.length > 0) {
                             row.name = row.en;
                         }
