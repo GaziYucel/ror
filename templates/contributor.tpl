@@ -58,7 +58,7 @@
         data() {
             return {
                 locale: '{$locale}', // en, de, fr (fr_CA is shortened to fr in php)
-                organizations: [], // [ { id: id, name: 'ror_display', 'en': 'label-en', 'de': 'label-de', ... }, ... ]
+                organizations: [], // [ { id: id1, name: 'ror_display', 'en': 'label-en', 'de': 'label-de', ... }, ... ]
                 searchPhrase: '',
                 minimumSearchPhraseLength: 3,
                 pendingRequests: new WeakMap()
