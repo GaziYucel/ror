@@ -8,7 +8,7 @@
  * Ror lookup for contributor
  *}
 
-<link rel="stylesheet" href="{$stylePath}" type="text/css" />
+<link rel="stylesheet" href="{$stylePath}" type="text/css"/>
 
 {assign var="templateOpen" value='<script>let rorPluginTemplate = `'}
 {assign var="templateClose" value='`;</script>'}
@@ -32,7 +32,7 @@
                        @keyup="apiLookup()"
                        :type="inputType" :id="controlId" :name="localizedName" :aria-describedby="describedByIds"
                        :aria-invalid="errors && errors.length" :disabled="isDisabled" :required="isRequired"
-                       :style="inputStyles" />
+                       :style="inputStyles"/>
             </label>
             <button class="pkpSearch__clear" v-if="searchPhrase" @click.prevent="clearSearchPhrase">
                 <icon icon="times"></icon>
@@ -50,88 +50,110 @@
 {$templateClose}
 
 <script>
-	let rorPluginTemplateCompiled = pkp.Vue.compile(rorPluginTemplate);
+    let rorPluginTemplateCompiled = pkp.Vue.compile(rorPluginTemplate);
 
-	pkp.Vue.component('ror-field-text-lookup', {
-		name: 'RorFieldTextLookup',
-		extends: pkp.Vue.component('field-text'),
-		data() {
-			return {
-				// [ { id: id1, name: name1, labels: [ 'en': 'label1', ... }, ... ]
-				organizations: [],
-				searchPhrase: '',
-				minimumSearchPhraseLength: 3,
-				pendingRequests: new WeakMap()
-			};
-		},
-		methods: {
-			selectOrganization(index) {
-				let fields = this.$parent._props.fields;
-				fields[this.getIndex('rorId')].value = this.organizations[index].id;
-				let values = fields[this.getIndex('affiliation')].value;
-				Object.keys(values).forEach(key => {
-					values[key] = this.organizations[index].name;
-					if (typeof this.organizations[index].labels[key] !== 'undefined') {
-						values[key] = this.organizations[index].labels[key];
-					}
-				});
-			},
-			clearSearchPhrase() {
-				this.organizations = [];
-				this.searchPhrase = '';
-			},
-			getIndex(fieldName) {
-				let fields = this.$parent._props.fields;
-				for (let i = 0; i < fields.length; i++) {
-					if (fields[i].name === fieldName) {
-						return i;
-					}
-				}
-			},
-			apiLookup() {
-				const previousController = this.pendingRequests.get(this);
-				if (previousController) previousController.abort();
+    pkp.Vue.component('ror-field-text-lookup', {
+        name: 'RorFieldTextLookup',
+        extends: pkp.Vue.component('field-text'),
+        data() {
+            return {
+                locale: '{$locale}', // en, de, fr (fr_CA is shortened to fr in php)
+                organizations: [], // [ { id: id, name: 'ror_display', 'en': 'label-en', 'de': 'label-de', ... }, ... ]
+                searchPhrase: '',
+                minimumSearchPhraseLength: 3,
+                pendingRequests: new WeakMap()
+            };
+        },
+        methods: {
+            selectOrganization(index) {
+                let fields = this.$parent._props.fields;
+                fields[this.getIndex('rorId')].value = this.organizations[index].id;
 
-				if (this.searchPhrase.length < this.minimumSearchPhraseLength) return;
+                let values = fields[this.getIndex('affiliation')].value;
+                Object.keys(values).forEach(locale => {
+                    let localeShort = locale.substring(0, 2); // locale = fr_FR > localeShort = fr
+                    values[locale] = this.organizations[index].name;
+                    if (typeof this.organizations[index][localeShort] !== 'undefined') {
+                        values[locale] = this.organizations[index][localeShort];
+                    }
+                });
+            },
+            clearSearchPhrase() {
+                this.organizations = [];
+                this.searchPhrase = '';
+            },
+            getIndex(fieldName) {
+                let fields = this.$parent._props.fields;
+                for (let i = 0; i < fields.length; i++) {
+                    if (fields[i].name === fieldName) {
+                        return i;
+                    }
+                }
+            },
+            apiLookup() {
+                const previousController = this.pendingRequests.get(this);
+                if (previousController) previousController.abort();
 
-				const controller = new AbortController();
-				this.pendingRequests.set(this, controller);
+                if (this.searchPhrase.length < this.minimumSearchPhraseLength) return;
 
-				fetch('https://api.ror.org/organizations?affiliation=' + this.searchPhrase + '*', {
-					signal: controller.signal
-				})
-					.then(response => response.json())
-					.then(data => {
-						this.setOrganizations(data.items);
-					})
-					.catch(error => {
-						if (error.name === 'AbortError') return;
-						console.log(error);
-					});
-			},
-			setOrganizations: function(items) {
-				let organizations = [];
+                const controller = new AbortController();
+                this.pendingRequests.set(this, controller);
 
-				items.forEach((item) => {
-					let labels = { /* */};
-					for (let i = 0; i < item.organization.labels.length; i++) {
-						labels[item.organization.labels[i].iso639]
-							= item.organization.labels[i].label;
-					}
-					let row = {
-						id: item.organization.id,
-						name: item.organization.name,
-						labels: labels
-					};
+                fetch('https://api.ror.org/v2/organizations?affiliation=' + this.searchPhrase + '*', {
+                    signal: controller.signal
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.setOrganizations(data.items);
+                    })
+                    .catch(error => {
+                        if (error.name === 'AbortError') return;
+                        console.log(error);
+                    });
+            },
+            setOrganizations: function (items) {
+                let organizations = [];
 
-					organizations.push(row);
-				});
+                items.forEach((item) => {
 
-				this.organizations = organizations;
-			}
-		},
-		render: function(h) {
-			return rorPluginTemplateCompiled.render.call(this, h);
-		}
-	});
+                    let row = {
+                        'id': item.organization.id,
+                        'name': '',
+                        'rorDisplay': '',
+                        'en': ''
+                    };
+
+                    for (let i = 0; i < item.organization.names.length; i++) {
+                        if (item.organization.names[i].types.includes('label')) {
+
+                            if (item.organization.names[i].lang === this.locale) {
+                                row.name = item.organization.names[i].value;
+                            }
+
+                            if (item.organization.names[i].types.includes('ror_display')) {
+                                row.rorDisplay = item.organization.names[i].value;
+                            }
+
+                            row[item.organization.names[i].lang] = item.organization.names[i].value;
+                        }
+                    }
+
+                    // name empty, try english or names.types: ror_display
+                    if (row.name === null || row.name.length === 0) {
+                        row.name = row.rorDisplay;
+                        if (row.en.length > 0) {
+                            row.name = row.en;
+                        }
+                    }
+
+                    organizations.push(row);
+                });
+
+                this.organizations = organizations;
+            }
+        },
+        render: function (h) {
+            return rorPluginTemplateCompiled.render.call(this, h);
+        }
+    });
 </script>
